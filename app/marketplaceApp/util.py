@@ -94,14 +94,17 @@ def complete_enrolment_price_update(userid, market_name):
                 except Exception as e:
                     print(f"item not found on product table: {e} with sku {item.sku}")
                     continue
-                # Check if the minimum quantity is lesser than supplier's quantity, use the minimum qauntity set by the user for the update, otherwise use the supplier's quantity for the update
+                # Determine quantity with max cap
                 if market_enrolled.maximum_quantity:
                     if float(market_enrolled.maximum_quantity) < float(db_item.quantity):
                         quantity = market_enrolled.maximum_quantity
                     else:
                         quantity = db_item.quantity
+                else:
+                    quantity = db_item.quantity
+
                 # Enforce MAP when wc_map_enforcement is enabled
-                if market_name == "Woocommerce": 
+                if market_name == "Woocommerce":
                     if market_enrolled.wc_map_enforcement==True and item.map==True:
                         try:
                             selling_price = max(round(selling_price, 2), float(item.map))
@@ -110,20 +113,25 @@ def complete_enrolment_price_update(userid, market_name):
                     # Update the price and quantity of product on Woocommerce
                     response = update_woocommerce_product_from_background(item.market_item_id, round(selling_price, 2), quantity, userid)
                     if response == "Success":
+                        inventory, created = InventoryModel.objects.update_or_create(user_id=userid, id=item.id, defaults=dict(start_price=round(selling_price, 2), quantity=quantity, total_product_cost=db_item.total_product_cost, last_updated=timezone.now()))
                         item_to_save, created = MarketPlaceUpdateLog.objects.update_or_create(user_id=userid, inventory_id=item.id, defaults=dict(market_name="Woocommerce", vendor_name=item.vendor_name, updated_sku=item.sku, log_description=f"Updated price to {round(selling_price, 2)} and quantity to {quantity} from vendor {item.vendor_name}"))
-                elif market_name == "Ebay": 
+                    else:
+                        logger.error(f"WooCommerce enrollment update FAILED for user {userid}, SKU {item.sku}. Response: {response}")
+
+                elif market_name == "Ebay":
                     if item.map:
                         try:
                             selling_price = max(round(selling_price, 2), float(item.map))
                         except (TypeError, ValueError) as map_err:
                             logger.warning(f"MAP enforcement skipped for SKU {item.sku}: {map_err}")
-                
+
                     # update the minimum quantity and new calculated price on Ebay for all items
                     response = complete_enrollment_quantity_price_update_on_ebay(userid, item.market_item_id, round(selling_price, 2), quantity, market_enrolled._id)
-                    if "Success" in response:
+                    if response and "Success" in response:
+                        inventory, created = InventoryModel.objects.update_or_create(user_id=userid, id=item.id, defaults=dict(start_price=round(selling_price, 2), quantity=quantity, total_product_cost=db_item.total_product_cost, last_updated=timezone.now()))
                         item_to_save, created = MarketPlaceUpdateLog.objects.update_or_create(user_id=userid, inventory_id=item.id, defaults=dict(market_name="Ebay", vendor_name=item.vendor_name, updated_sku=item.sku, log_description=f"Updated price to {round(selling_price, 2)} and quantity to {quantity} from vendor {item.vendor_name}"))
-                          
-                inventory, created = InventoryModel.objects.update_or_create(user_id=userid, id=item.id, defaults=dict(start_price=round(selling_price, 2), quantity=f"eb:{quantity}|su:{db_item.quantity}", total_product_cost=db_item.total_product_cost, last_updated=timezone.now()))
+                    else:
+                        logger.error(f"eBay enrollment update FAILED for user {userid}, SKU {item.sku}. Response: {response}")
         except Exception as e:
             print(f"Complete enrollment failed for user: {userid} with sku: {item.sku}. Error: {e}")
             continue
