@@ -217,7 +217,7 @@ class General_operations:
                 if user.parent_id:
                     userid = user.parent_id
 
-            unmapped_item = InventoryModel.objects.all().filter(id=inventoryid).values()
+            unmapped_item = InventoryModel.objects.all().filter(id=inventoryid, user_id=userid).values()
             enrollment = Enrollment.objects.filter(user_id=userid)
             vendor_list = [vendor.identifier for vendor in enrollment]
             return JsonResponse({"item_details":list(unmapped_item), "vendor_list": list(dict.fromkeys(vendor_list))}, safe=False, status=status.HTTP_200_OK)
@@ -491,7 +491,7 @@ class MarketInventory:
         minv = MarketInventory()
         eb = Ebay()
         
-        product_info = get_object_or_404(InventoryModel, id=inventory_id)
+        product_info = get_object_or_404(InventoryModel, id=inventory_id, user_id=userid)
         serializer = InventoryModelUpdateSerializer(instance=product_info, data=request.data, partial=True)
         if serializer.is_valid():
             # get the serializer's data
@@ -676,7 +676,7 @@ class MarketInventory:
                 if user.parent_id:
                     userid = user.parent_id
 
-            inventory_item = InventoryModel.objects.all().filter(id=inventoryid).values()
+            inventory_item = InventoryModel.objects.all().filter(id=inventoryid, user_id=userid).values()
             return JsonResponse({"item_details":list(inventory_item)}, safe=False, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(f"Failed to get items.", status=status.HTTP_400_BAD_REQUEST)
@@ -688,7 +688,13 @@ class MarketInventory:
     @api_view(['GET'])
     def get_saved_product_for_listing(request, inventoryid):
         try:
-            saved_item = InventoryModel.objects.all().filter(id=inventoryid).values()
+            userid = request.user.id
+            user = request.user
+            if user:
+                if user.parent_id:
+                    userid = user.parent_id
+
+            saved_item = InventoryModel.objects.all().filter(id=inventoryid, user_id=userid).values()
             return JsonResponse({"saved_items":list(saved_item)}, safe=False, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(f"Failed to get items.", status=status.HTTP_400_BAD_REQUEST)
@@ -700,7 +706,13 @@ class MarketInventory:
     @api_view(['GET'])
     def delete_product_from_inventory(request, inventoryid):
         try:
-            invent_item = InventoryModel.objects.filter(id=inventoryid)
+            userid = request.user.id
+            user = request.user
+            if user:
+                if user.parent_id:
+                    userid = user.parent_id
+
+            invent_item = InventoryModel.objects.filter(id=inventoryid, user_id=userid)
             Generalproducttable.objects.filter(id=invent_item.values()[0].get('product_id')).update(active=False)
             invent_item.delete()
             return Response("Item deleted successfully", status=status.HTTP_200_OK)
@@ -723,7 +735,7 @@ class MarketInventory:
         
         access_token = eb.refresh_access_token(userid, "Ebay")
         try:
-            invent_item = InventoryModel.objects.get(id=inventoryid)
+            invent_item = InventoryModel.objects.get(id=inventoryid, user_id=userid)
             # end item on ebay listing
             url = "https://api.ebay.com/ws/api.dll"
             headers = {
@@ -810,7 +822,7 @@ class WooCommerceInventory:
                 consumer_secret = enrollment.wc_consumer_secret, 
                 version = "wc/v3"
             )
-            product_info = get_object_or_404(InventoryModel, id=inventory_id)
+            product_info = get_object_or_404(InventoryModel, id=inventory_id, user_id=userid)
             serializer = InventoryModelUpdateSerializer(instance=product_info, data=request.data, partial=True)
             if serializer.is_valid():
                 # get the serializer's data
