@@ -11,7 +11,6 @@ __pycache__/
 
 # Virtual env
 venv/
-.env
 
 # Django stuff
 *.sqlite3
@@ -19,7 +18,6 @@ venv/
 /media/
 
 # VSCode / IDE
-.vscode/
 .idea/
 
 celerybeat-schedule.dat
@@ -27,3 +25,9 @@ celerybeat-schedule.bak
 celerybeat-schedule.dir
 
 *.shopify/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
+config.bat
+node_modules
